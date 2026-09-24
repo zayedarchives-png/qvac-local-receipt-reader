@@ -1,0 +1,8 @@
+node_modules/
+output/
+.env
+
+# local working notes
+CLAUDE.md
+plan.md
+rule.md
