@@ -57,15 +57,15 @@ node bin/receipt.js scan samples/
 # scan one image and also save the result as JSON
 node bin/receipt.js scan samples/northway-fuel.png --json output/
 
-# ignore OCR blocks the model is unsure about
-node bin/receipt.js scan photo.jpg --min-confidence 0.5
+# mark anything the model is unsure about with '?'
+node bin/receipt.js scan photo.jpg --min-confidence 0.6
 ```
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--json <dir>` | off | write one `<image>.json` per receipt into `<dir>` |
 | `--lang <code>` | `en` | OCR language code |
-| `--min-confidence <n>` | `0` | drop OCR blocks below this confidence (0 to 1) |
+| `--min-confidence <n>` | `0` | flag rows and fields below this confidence with `?` (0 to 1) |
 | `-h`, `--help` | | show help |
 
 Supported images: `.png`, `.jpg`, `.jpeg`. Exit code is `0` on success, `1` if

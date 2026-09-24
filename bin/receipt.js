@@ -17,7 +17,7 @@ plus the merchant, date and total it found.
 Options:
   --json <dir>            also write one <image>.json file per receipt into <dir>
   --lang <code>           OCR language code (default: en)
-  --min-confidence <n>    drop OCR blocks below this confidence, 0..1 (default: 0)
+  --min-confidence <n>    flag rows and fields below this confidence with '?', 0..1 (default: 0)
   -h, --help              show this help
 
 Supported images: ${[...IMAGE_TYPES].join(', ')}`;
@@ -82,7 +82,7 @@ function formatAmount(value) {
   return value < 0 ? `-${Math.abs(value).toFixed(2)}` : value.toFixed(2);
 }
 
-function printReport(file, rows, fields, ms) {
+function printReport(file, rows, fields, ms, minConfidence) {
   const width = Math.max(20, ...rows.map((r) => r.cells.slice(0, -1).map((c) => c.text).join(' ').length));
   console.log(`\n${file}  (${rows.length} rows, ${(ms / 1000).toFixed(1)}s)`);
   console.log('-'.repeat(width + 22));
@@ -90,14 +90,16 @@ function printReport(file, rows, fields, ms) {
     // Keep the right-most cell in its own column so amounts line up.
     const left = row.cells.length > 1 ? row.cells.slice(0, -1).map((c) => c.text).join(' ') : row.text;
     const right = row.cells.length > 1 ? row.cells[row.cells.length - 1].text : '';
-    console.log(`  ${left.padEnd(width)}  ${right.padStart(10)}  ${row.confidence.toFixed(2)}`);
+    const mark = row.confidence < minConfidence ? ' ?' : '';
+    console.log(`  ${left.padEnd(width)}  ${right.padStart(10)}  ${row.confidence.toFixed(2)}${mark}`);
   }
   console.log('-'.repeat(width + 22));
 
   const { merchant, date, total } = fields;
-  console.log(`  merchant  ${merchant ? merchant.name : '(not found)'}`);
-  console.log(`  date      ${date ? (date.iso ?? `${date.raw} (ambiguous)`) : '(not found)'}`);
-  console.log(`  total     ${total ? `${formatAmount(total.value)}  [${total.label}]` : '(not found)'}`);
+  const doubt = (field) => (field.uncertain ? `  ? low confidence ${field.confidence.toFixed(2)}` : '');
+  console.log(`  merchant  ${merchant ? merchant.name + doubt(merchant) : '(not found)'}`);
+  console.log(`  date      ${date ? (date.iso ?? `${date.raw} (ambiguous)`) + doubt(date) : '(not found)'}`);
+  console.log(`  total     ${total ? `${formatAmount(total.value)}  [${total.label}]${doubt(total)}` : '(not found)'}`);
 }
 
 async function scan({ target, jsonDir, lang, minConfidence }) {
@@ -111,10 +113,9 @@ async function scan({ target, jsonDir, lang, minConfidence }) {
   for (const file of images) {
     const t0 = Date.now();
     try {
-      const blocks = (await read(file)).filter((b) => b.confidence >= minConfidence);
-      const rows = groupRows(blocks);
-      const fields = extractFields(rows);
-      printReport(file, rows, fields, Date.now() - t0);
+      const rows = groupRows(await read(file));
+      const fields = extractFields(rows, { minConfidence });
+      printReport(file, rows, fields, Date.now() - t0, minConfidence);
 
       if (jsonDir) {
         const out = path.join(jsonDir, `${path.parse(file).name}.json`);
